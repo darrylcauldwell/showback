@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}Showback — What If{% endblock %}
+
+{% block head %}
+<style>
+    .filter-btn {
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        cursor: pointer;
+        border: 1px solid var(--border);
+        background: var(--bg-card);
+        color: var(--text-secondary);
+        transition: all 0.15s;
+    }
+    .filter-btn.active {
+        background: var(--accent);
+        color: #000;
+        border-color: var(--accent);
+    }
+    .sort-header {
+        cursor: pointer;
+        user-select: none;
+    }
+    .sort-header:hover {
+        color: var(--accent);
+    }
+    .current-row {
+        border-left: 3px solid var(--accent);
+        background: rgba(90, 200, 250, 0.05);
+    }
+    .best-row {
+        border-left: 3px solid #30D158;
+        background: rgba(48, 209, 88, 0.05);
+    }
+    .delta-positive { color: #FF453A; }
+    .delta-negative { color: #30D158; }
+    .delta-zero { color: var(--text-secondary); }
+    .badge {
+        font-size: 0.625rem;
+        padding: 0.125rem 0.375rem;
+        border-radius: 9999px;
+        font-weight: 600;
+        vertical-align: middle;
+        margin-left: 0.375rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold mb-1">What If — Cloud Cost Comparison</h1>
+    <p style="color: var(--text-secondary);">How much would this infrastructure cost on a different cloud provider?</p>
+</div>
+
+<!-- Current Plan Card -->
+<div class="card rounded-lg p-4 mb-6" style="border-left: 3px solid var(--accent);">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <div class="text-sm font-medium mb-1" style="color: var(--text-secondary);">Current Plan</div>
+            <div class="text-lg font-bold">DO {{ initial_data.current_plan }} <span class="text-sm font-normal" style="color: var(--text-secondary);">— London, UK</span></div>
+            <div class="flex flex-wrap gap-4 text-sm mt-1" style="color: var(--text-secondary);">
+                <span>{{ settings.host_vcpus }} vCPU</span>
+                <span>{{ settings.host_memory_gb }}GB RAM</span>
+                <span>{{ settings.host_disk_gb }}GB SSD</span>
+                <span class="font-medium" style="color: var(--accent);">${{ "%.2f"|format(initial_data.current_cost) }}/mo total</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-3 md:justify-end">
+            <div class="text-right text-xs" style="color: var(--text-secondary);">
+                Total includes compute (${{ "%.2f"|format(settings.droplet_cost) }}/mo) + domain (${{ "%.2f"|format(settings.domain_cost) }}/mo).
+                <br>Comparison adds domain cost to all providers for fairness.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Provider Filter -->
+<div class="flex flex-wrap gap-2 mb-4 items-center">
+    <span class="text-sm" style="color: var(--text-secondary);">Cloud Provider:</span>
+    <button class="filter-btn active" data-provider="all" onclick="filterProvider('all')">All</button>
+    <button class="filter-btn" data-provider="DO" onclick="filterProvider('DO')">DO</button>
+    <button class="filter-btn" data-provider="AWS" onclick="filterProvider('AWS')">AWS</button>
+    <button class="filter-btn" data-provider="Azure" onclick="filterProvider('Azure')">Azure</button>
+    <button class="filter-btn" data-provider="GCP" onclick="filterProvider('GCP')">GCP</button>
+</div>
+
+<!-- Comparison Table -->
+<div class="card rounded-lg overflow-hidden mb-6">
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm" id="comparisonTable">
+            <thead>
+                <tr style="background: var(--bg-secondary); border-bottom: 1px solid var(--border);">
+                    <th class="px-4 py-3 text-left sort-header" data-sort="rank" onclick="sortTable('rank')">#</th>
+                    <th class="px-4 py-3 text-left sort-header" data-sort="provider" onclick="sortTable('provider')">Provider</th>
+                    <th class="px-4 py-3 text-left sort-header" data-sort="plan" onclick="sortTable('plan')">Plan</th>
+                    <th class="px-4 py-3 text-left sort-header" data-sort="location" onclick="sortTable('location')">Location</th>
+                    <th class="px-4 py-3 text-right sort-header" data-sort="vcpus" onclick="sortTable('vcpus')">vCPUs</th>
+                    <th class="px-4 py-3 text-right sort-header" data-sort="memory_gb" onclick="sortTable('memory_gb')">RAM (GB)</th>
+                    <th class="px-4 py-3 text-right sort-header" data-sort="disk_gb" onclick="sortTable('disk_gb')">Disk (GB)</th>
+                    <th class="px-4 py-3 text-right sort-header" data-sort="total_monthly" onclick="sortTable('total_monthly')">Total ($/mo)</th>
+                    <th class="px-4 py-3 text-right sort-header" data-sort="delta_percent" onclick="sortTable('delta_percent')">vs Current</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Summary Card -->
+<div class="card rounded-lg p-4 mb-4" id="summaryCard" style="display: none;">
+    <div class="flex items-center gap-3">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center" style="background: var(--accent-light);">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color: var(--accent);">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        </div>
+        <div>
+            <div class="text-sm font-medium" id="summaryText" style="color: var(--text-primary);"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Data Sources -->
+<div class="text-xs" style="color: var(--text-secondary);">
+    <strong>Data sources:</strong>
+    Pricing as of March 2026 for London/EU West regions.
+    AWS uses on-demand pricing (no reserved instances or savings plans).
+    All costs exclude data transfer, backups, and additional services.
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const initialData = {{ initial_data | tojson }};
+let currentFilter = 'all';
+let currentSort = { key: 'total_monthly', ascending: true };
+
+function renderTable(data) {
+    const tbody = document.getElementById('tableBody');
+
+    if (!data.plans || data.plans.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="px-4 py-8 text-center" style="color: var(--text-secondary);">No pricing data available.</td></tr>';
+        return;
+    }
+
+    // Apply filter
+    let plans = data.plans;
+    if (currentFilter !== 'all') {
+        plans = plans.filter(r => r.provider === currentFilter);
+    }
+
+    // Apply sort
+    plans = [...plans].sort((a, b) => {
+        let va = a[currentSort.key];
+        let vb = b[currentSort.key];
+        if (typeof va === 'string') {
+            va = va.toLowerCase();
+            vb = vb.toLowerCase();
+        }
+        if (va < vb) return currentSort.ascending ? -1 : 1;
+        if (va > vb) return currentSort.ascending ? 1 : -1;
+        return 0;
+    });
+
+    // Find cheapest
+    const allSorted = [...data.plans].sort((a, b) => a.total_monthly - b.total_monthly);
+    const cheapestKey = allSorted.length > 0 ? allSorted[0].provider + allSorted[0].plan : null;
+
+    let html = '';
+    plans.forEach((r, i) => {
+        const isCheapest = (r.provider + r.plan) === cheapestKey;
+        let rowClass = '';
+        if (r.is_current) rowClass = 'current-row';
+        else if (isCheapest) rowClass = 'best-row';
+
+        const deltaClass = r.delta_percent < 0 ? 'delta-negative' : r.delta_percent > 0 ? 'delta-positive' : 'delta-zero';
+        const deltaText = r.is_current ? 'current' : (r.delta_percent > 0 ? '+' : '') + r.delta_percent.toFixed(1) + '%';
+
+        let planBadge = '';
+        if (r.is_current && isCheapest) {
+            planBadge = '<span class="badge" style="background: var(--accent); color: #000;">CURRENT & CHEAPEST</span>';
+        } else if (r.is_current) {
+            planBadge = '<span class="badge" style="background: var(--accent); color: #000;">CURRENT</span>';
+        } else if (isCheapest) {
+            planBadge = '<span class="badge" style="background: #30D158; color: #000;">CHEAPEST</span>';
+        }
+
+        html += `<tr class="${rowClass}" style="border-bottom: 1px solid var(--border);">
+            <td class="px-4 py-2.5">${i + 1}</td>
+            <td class="px-4 py-2.5 font-medium">${r.provider}</td>
+            <td class="px-4 py-2.5"><code class="text-xs">${r.plan}</code>${planBadge}</td>
+            <td class="px-4 py-2.5">${r.location}</td>
+            <td class="px-4 py-2.5 text-right">${r.vcpus}</td>
+            <td class="px-4 py-2.5 text-right">${r.memory_gb}</td>
+            <td class="px-4 py-2.5 text-right">${r.disk_gb}</td>
+            <td class="px-4 py-2.5 text-right font-medium">$${r.total_monthly.toFixed(2)}</td>
+            <td class="px-4 py-2.5 text-right ${deltaClass}">${deltaText}</td>
+        </tr>`;
+    });
+
+    tbody.innerHTML = html;
+
+    // Update summary
+    const cheapest = data.cheapest;
+    const summaryCard = document.getElementById('summaryCard');
+    const summaryText = document.getElementById('summaryText');
+    if (cheapest && cheapest.delta_percent < 0) {
+        summaryText.textContent =
+            `Cheapest alternative: ${cheapest.provider} ${cheapest.plan} (${cheapest.location}) — ${Math.abs(cheapest.delta_percent).toFixed(0)}% cheaper at $${cheapest.total_monthly.toFixed(2)}/mo`;
+        summaryCard.style.display = 'block';
+    } else if (cheapestKey) {
+        summaryText.textContent =
+            `Your current plan (DO ${data.current_plan}) is already the cheapest option`;
+        summaryCard.style.display = 'block';
+    } else {
+        summaryCard.style.display = 'none';
+    }
+
+    // Update sort indicators
+    document.querySelectorAll('.sort-header').forEach(th => {
+        const key = th.dataset.sort;
+        th.textContent = th.textContent.replace(/ [▲▼]$/, '');
+        if (key === currentSort.key) {
+            th.textContent += currentSort.ascending ? ' ▲' : ' ▼';
+        }
+    });
+}
+
+function filterProvider(provider) {
+    currentFilter = provider;
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.provider === provider);
+    });
+    renderTable(initialData);
+}
+
+function sortTable(key) {
+    if (currentSort.key === key) {
+        currentSort.ascending = !currentSort.ascending;
+    } else {
+        currentSort.key = key;
+        currentSort.ascending = true;
+    }
+    renderTable(initialData);
+}
+
+// Initial render
+renderTable(initialData);
+</script>
+{% endblock %}

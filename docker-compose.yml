@@ -1,0 +1,127 @@
+services:
+  showback:
+    build: .
+    container_name: showback
+    ports:
+      - "8003:8000"
+    environment:
+      - SHOWBACK_PROMETHEUS_URL=http://showback-prometheus:9090
+      - SHOWBACK_DROPLET_COST=24.00
+      - SHOWBACK_CLOUDFLARE_COST=0.00
+      - SHOWBACK_DOMAIN_COST=1.02
+      - SHOWBACK_CPU_WEIGHT=0.5
+      - SHOWBACK_MEMORY_WEIGHT=0.5
+      - SHOWBACK_HOST_VCPUS=2
+      - SHOWBACK_HOST_MEMORY_GB=4
+      - SHOWBACK_HOST_DISK_GB=80
+      - 'SHOWBACK_APP_BOUNDARIES={"evm": ["evm-backend", "evm-frontend", "evm-db"], "equicalendar": ["equicalendar"], "planespotter": ["planespotter-api", "planespotter-frontend", "planespotter-sync", "planespotter-db", "planespotter-cache"], "meweb": ["meweb"], "greenscope": ["greenscope"], "infrastructure": ["prometheus", "grafana", "loki", "promtail", "node-exporter", "cadvisor", "ntfy", "showback"]}'
+      - 'SHOWBACK_APP_DISPLAY_NAMES={"evm": "Equestrian Venue Manager", "equicalendar": "EquiCalendar", "planespotter": "Planespotter", "meweb": "dreamfold.dev", "greenscope": "GreenScope", "infrastructure": "Infrastructure"}'
+      - SHOWBACK_CALCULATION_INTERVAL_MINUTES=15
+      - SHOWBACK_DATABASE_URL=sqlite+aiosqlite:///data/showback.db
+      - SHOWBACK_LOG_LEVEL=INFO
+    volumes:
+      - showback_data:/app/data
+    networks:
+      - web
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    depends_on:
+      showback-prometheus:
+        condition: service_healthy
+
+  showback-prometheus:
+    image: prom/prometheus:v2.50.0
+    container_name: showback-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - showback_prometheus_data:/prometheus
+    networks:
+      - web
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  showback-grafana:
+    image: grafana/grafana:10.3.1
+    container_name: showback-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - showback_grafana_data:/var/lib/grafana
+    networks:
+      - web
+    depends_on:
+      showback-prometheus:
+        condition: service_healthy
+
+  showback-loki:
+    image: grafana/loki:3.0.0
+    container_name: showback-loki
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - showback_loki_data:/loki
+    networks:
+      - web
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  showback-promtail:
+    image: grafana/promtail:3.0.0
+    container_name: showback-promtail
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./observability/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - web
+    depends_on:
+      showback-loki:
+        condition: service_healthy
+
+  showback-cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: showback-cadvisor
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - web
+
+  showback-node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: showback-node-exporter
+    networks:
+      - web
+
+networks:
+  web:
+    driver: bridge
+
+volumes:
+  showback_data:
+  showback_prometheus_data:
+  showback_grafana_data:
+  showback_loki_data:

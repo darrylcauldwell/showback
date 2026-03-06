@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Showback — Methodology{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-3xl font-bold mb-2">Methodology</h1>
+    <p class="mb-8" style="color: var(--text-secondary);">
+        How Showback allocates infrastructure costs across applications using real-time resource usage data.
+    </p>
+
+    <!-- Cost Model -->
+    <section class="card rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-3">The Cost Model</h2>
+        <div class="p-4 rounded font-mono text-center text-lg mb-4" style="background: var(--bg-secondary);">
+            App Cost = Droplet Share + Cloudflare Share + Domain Share
+        </div>
+        <div class="space-y-2 text-sm" style="color: var(--text-secondary);">
+            <p><strong style="color: var(--text-primary);">Droplet Share</strong> = ({{ "%.0f"|format(settings.cpu_weight * 100) }}% &times; CPU share + {{ "%.0f"|format(settings.memory_weight * 100) }}% &times; Memory share) &times; Droplet cost</p>
+            <p><strong style="color: var(--text-primary);">Cloudflare Share</strong> = Network traffic share &times; Cloudflare cost</p>
+            <p><strong style="color: var(--text-primary);">Domain Share</strong> = Domain cost &divide; Number of app groups</p>
+        </div>
+        <p class="mt-3 text-sm" style="color: var(--text-secondary);">
+            The result is the proportional cost allocated to each application based on its actual resource consumption.
+        </p>
+    </section>
+
+    <!-- Monthly Costs -->
+    <section class="card rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-3">Monthly Fixed Costs</h2>
+        <div class="space-y-2">
+            <div class="p-3 rounded flex justify-between text-sm" style="background: var(--bg-secondary);">
+                <span><strong>Digital Ocean Droplet</strong> <span style="color: var(--text-secondary);">({{ settings.host_vcpus }} vCPU, {{ settings.host_memory_gb }}GB RAM, {{ settings.host_disk_gb }}GB SSD)</span></span>
+                <span class="font-mono">${{ "%.2f"|format(settings.droplet_cost) }}/mo</span>
+            </div>
+            <div class="p-3 rounded flex justify-between text-sm" style="background: var(--bg-secondary);">
+                <span><strong>Cloudflare DNS</strong> <span style="color: var(--text-secondary);">(free tier)</span></span>
+                <span class="font-mono">${{ "%.2f"|format(settings.cloudflare_cost) }}/mo</span>
+            </div>
+            <div class="p-3 rounded flex justify-between text-sm" style="background: var(--bg-secondary);">
+                <span><strong>Domain Registration</strong> <span style="color: var(--text-secondary);">(dreamfold.dev, $12.20/year)</span></span>
+                <span class="font-mono">${{ "%.2f"|format(settings.domain_cost) }}/mo</span>
+            </div>
+            <div class="p-3 rounded flex justify-between text-sm font-semibold" style="background: var(--accent-light);">
+                <span>Total</span>
+                <span class="font-mono">${{ "%.2f"|format(settings.total_monthly_cost) }}/mo</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Resource Measurement -->
+    <section class="card rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-3">Resource Measurement</h2>
+        <p class="text-sm mb-3" style="color: var(--text-secondary);">
+            All resource usage is measured live from
+            <a href="https://prometheus.io/" class="underline" style="color: var(--accent);">Prometheus</a> via
+            <a href="https://github.com/google/cadvisor" class="underline" style="color: var(--accent);">cAdvisor</a>,
+            which collects per-container metrics from the Docker runtime.
+        </p>
+        <div class="text-sm space-y-2" style="color: var(--text-secondary);">
+            <p><strong style="color: var(--text-primary);">CPU Usage:</strong> <code>container_cpu_usage_seconds_total</code> — total CPU-seconds consumed per container, summed over the measurement period.</p>
+            <p><strong style="color: var(--text-primary);">Memory Usage:</strong> <code>container_memory_usage_bytes</code> — average memory in bytes per container over the measurement period.</p>
+            <p><strong style="color: var(--text-primary);">Network Traffic:</strong> <code>container_network_transmit_bytes_total</code> + <code>container_network_receive_bytes_total</code> — total bytes transferred.</p>
+        </div>
+        <div class="text-sm mt-3 space-y-1" style="color: var(--text-secondary);">
+            <p><strong>Measurement interval:</strong> every {{ settings.calculation_interval_minutes }} minutes</p>
+            <p><strong>Allocation weights:</strong> {{ "%.0f"|format(settings.cpu_weight * 100) }}% CPU + {{ "%.0f"|format(settings.memory_weight * 100) }}% memory for droplet cost</p>
+        </div>
+    </section>
+
+    <!-- Share Calculation -->
+    <section class="card rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-3">Share Calculation</h2>
+        <div class="p-4 rounded font-mono text-sm mb-4" style="background: var(--bg-secondary);">
+            CPU share = app_cpu_seconds / total_cpu_seconds<br>
+            Memory share = app_memory_bytes / total_memory_bytes<br>
+            Network share = app_network_bytes / total_network_bytes<br>
+            Resource share = 0.5 &times; CPU share + 0.5 &times; Memory share
+        </div>
+        <p class="text-sm" style="color: var(--text-secondary);">
+            Each app's share is the proportion of total resources it consumes relative to all other apps.
+            When no usage data is available (e.g. on first startup), shares default to an even split across all app groups.
+        </p>
+    </section>
+
+    <!-- Software Boundaries -->
+    <section class="card rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-3">Application Boundaries</h2>
+        <p class="text-sm mb-3" style="color: var(--text-secondary);">
+            Each app's cost includes the resource usage of its constituent containers:
+        </p>
+        <div class="space-y-2">
+            {% for app_name, containers in boundaries.items() %}
+            <div class="p-3 rounded text-sm" style="background: var(--bg-secondary);">
+                <strong>{{ display_names.get(app_name, app_name) }}</strong>:
+                <span style="color: var(--text-secondary);">
+                    {% for c in containers %}
+                    <code>{{ c }}</code>{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Domain Cost Allocation -->
+    <section class="card rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-3">Domain Cost Allocation</h2>
+        <p class="text-sm" style="color: var(--text-secondary);">
+            The domain registration cost (${{ "%.2f"|format(settings.domain_cost) }}/mo) is split evenly across
+            all {{ settings.app_count }} application groups, since every app uses a <code>dreamfold.dev</code>
+            subdomain (e.g. <code>evm.dreamfold.dev</code>, <code>planespotter.dreamfold.dev</code>).
+            This gives each app ${{ "%.4f"|format(settings.domain_cost / settings.app_count) }}/mo in domain cost.
+        </p>
+    </section>
+
+    <!-- Limitations -->
+    <section class="card rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-3">Limitations</h2>
+        <div class="text-sm space-y-2" style="color: var(--text-secondary);">
+            <ul class="list-disc list-inside ml-2 space-y-1">
+                <li><strong>Fixed cost model:</strong> The underlying costs (droplet, domain) are fixed monthly charges. Showback allocates them proportionally but cannot reduce the actual bill.</li>
+                <li><strong>CPU + memory only:</strong> Disk I/O is not included in the allocation model, as cAdvisor disk metrics are less reliable for shared-disk environments.</li>
+                <li><strong>Equal domain split:</strong> Domain cost is split evenly rather than by traffic, since all apps benefit equally from DNS resolution.</li>
+                <li><strong>No data transfer costs:</strong> DigitalOcean includes generous transfer allowances. If transfer overages occur, they are not currently tracked.</li>
+                <li><strong>Measurement interval:</strong> Calculations run every {{ settings.calculation_interval_minutes }} minutes. Short-lived spikes within a period are averaged out.</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Contact -->
+    <section class="card rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-3">Contact</h2>
+        <p class="text-sm" style="color: var(--text-secondary);">
+            Showback is built by <a href="https://dreamfold.dev" class="underline" style="color: var(--accent);">Darryl Cauldwell</a>.
+            For questions about this methodology, please visit <a href="https://dreamfold.dev" class="underline" style="color: var(--accent);">dreamfold.dev</a>.
+        </p>
+    </section>
+</div>
+{% endblock %}

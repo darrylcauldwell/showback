@@ -1,0 +1,384 @@
+{% extends "base.html" %}
+
+{% block title %}Showback — Dashboard{% endblock %}
+
+{% block head %}
+<meta http-equiv="refresh" content="300">
+<style>
+    .info-tip {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 1px solid var(--text-secondary);
+        font-size: 9px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        cursor: help;
+        margin-left: 4px;
+        flex-shrink: 0;
+    }
+    .info-tip:hover::after {
+        content: attr(data-tip);
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 400;
+        white-space: nowrap;
+        z-index: 10;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+        <div>
+            <h1 class="text-2xl font-bold mb-1">FinOps Cost Allocation Dashboard</h1>
+            <p style="color: var(--text-secondary);">Proportional cost allocation for dreamfold.dev applications</p>
+        </div>
+        <select id="timeRangeSelect" onchange="switchTimeRange(this.value)"
+            class="rounded-lg px-3 py-2 text-sm"
+            style="background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border);">
+            <option value="1440">Last 1 day</option>
+            <option value="10080">Last 1 week</option>
+            <option value="43200">Last 1 month</option>
+            <option value="525960">Last 1 year</option>
+        </select>
+    </div>
+</div>
+
+<!-- Monthly Cost Summary -->
+<div class="card rounded-lg p-5 mb-6">
+    <div class="flex items-center gap-3 mb-3">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center" style="background: var(--accent-light);">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color: var(--accent);">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        </div>
+        <div>
+            <h3 class="font-semibold text-lg">Monthly Infrastructure Cost</h3>
+            <div class="text-2xl font-bold">
+                ${{ "%.2f"|format(settings.total_monthly_cost) }}
+                <span class="text-sm font-normal" style="color: var(--text-secondary);">/month</span>
+            </div>
+        </div>
+    </div>
+    <div class="flex flex-wrap gap-6 text-sm" style="color: var(--text-secondary);">
+        <div class="flex items-center gap-2">
+            <span class="inline-block w-3 h-3 rounded-full" style="background: #5AC8FA;"></span>
+            Droplet: ${{ "%.2f"|format(settings.droplet_cost) }}
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="inline-block w-3 h-3 rounded-full" style="background: #FF9F0A;"></span>
+            Cloudflare: ${{ "%.2f"|format(settings.cloudflare_cost) }}
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="inline-block w-3 h-3 rounded-full" style="background: #BF5AF2;"></span>
+            Domain: ${{ "%.2f"|format(settings.domain_cost) }}
+        </div>
+    </div>
+    <p class="mt-3 text-xs" style="color: var(--text-secondary);">
+        Costs allocated proportionally: droplet cost split {{ "%.0f"|format(settings.cpu_weight * 100) }}% by CPU share + {{ "%.0f"|format(settings.memory_weight * 100) }}% by memory share. Domain cost split evenly across {{ settings.app_count }} app groups. All resource usage measured live via <a href="https://prometheus.io/" class="underline" style="color: var(--accent);">Prometheus</a> + <a href="https://github.com/google/cadvisor" class="underline" style="color: var(--accent);">cAdvisor</a>.
+    </p>
+</div>
+
+<!-- Droplet-Level Summary -->
+<div id="dropletSection">
+{% if droplet %}
+<div class="card rounded-lg p-5 mb-6">
+    <div class="flex items-center justify-between mb-1">
+        <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color: var(--accent);">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
+            </svg>
+            <h3 class="font-semibold text-lg">Droplet Total <span class="text-xs font-normal" style="color: var(--text-secondary);">(last {{ calc_interval_minutes }}m)</span></h3>
+        </div>
+        <span class="text-xs px-2 py-1 rounded-full" style="background: var(--accent-light); color: var(--accent-dark);">
+            {{ droplet.container_count }} containers
+        </span>
+    </div>
+    <div class="flex flex-wrap gap-1 mb-3">
+        {% for container in all_containers %}
+        <span class="text-xs px-2 py-0.5 rounded-full" style="background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border);">{{ container }}</span>
+        {% endfor %}
+    </div>
+    <div class="space-y-1 text-sm" style="color: var(--text-secondary);">
+        <div class="flex justify-between">
+            <span class="flex items-center">Droplet share<span class="info-tip" data-tip="Compute cost allocated by 50% CPU + 50% memory usage share from Prometheus/cAdvisor">i</span></span>
+            <span>${{ "%.6f"|format(droplet.droplet_cost) }}</span>
+        </div>
+        <div class="flex justify-between">
+            <span class="flex items-center">Cloudflare share<span class="info-tip" data-tip="DNS/CDN cost allocated by network traffic share (currently $0/mo)">i</span></span>
+            <span>${{ "%.6f"|format(droplet.cloudflare_cost) }}</span>
+        </div>
+        <div class="flex justify-between">
+            <span class="flex items-center">Domain share<span class="info-tip" data-tip="Domain registration ($12.20/yr) split evenly across all app groups">i</span></span>
+            <span>${{ "%.6f"|format(droplet.domain_cost) }}</span>
+        </div>
+        <div class="flex justify-between pt-1 mt-1 font-semibold" style="border-top: 1px solid var(--border); color: var(--accent);">
+            <span>Period total</span>
+            <span>${{ "%.6f"|format(droplet.total_cost) }}</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+</div>
+
+<!-- Per-App Cost Cards -->
+<div id="appCardsSection">
+{% if snapshots %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+    {% for snap in snapshots %}
+    <div class="card rounded-lg p-5">
+        <div class="flex items-center justify-between mb-1">
+            <h3 class="font-semibold text-lg">{{ display_names.get(snap.app_name, snap.app_name) }} <span class="text-xs font-normal" style="color: var(--text-secondary);">(last {{ calc_interval_minutes }}m)</span></h3>
+        </div>
+        <div class="flex flex-wrap gap-1 mb-3">
+            {% for container in boundaries.get(snap.app_name, []) %}
+            <span class="text-xs px-2 py-0.5 rounded-full" style="background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border);">{{ container }}</span>
+            {% endfor %}
+        </div>
+        <div class="space-y-1 text-sm" style="color: var(--text-secondary);">
+            <div class="flex justify-between">
+                <span class="flex items-center">CPU share<span class="info-tip" data-tip="Proportion of total CPU-seconds consumed by this app's containers">i</span></span>
+                <span>{{ "%.1f"|format(snap.cpu_share * 100) }}%</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="flex items-center">Memory share<span class="info-tip" data-tip="Proportion of total memory used by this app's containers (avg over period)">i</span></span>
+                <span>{{ "%.1f"|format(snap.memory_share * 100) }}%</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="flex items-center">Droplet cost<span class="info-tip" data-tip="Compute cost = (50% CPU share + 50% memory share) x droplet cost for this period">i</span></span>
+                <span>${{ "%.6f"|format(snap.droplet_cost) }}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="flex items-center">Domain cost<span class="info-tip" data-tip="Domain registration split evenly across all app groups">i</span></span>
+                <span>${{ "%.6f"|format(snap.domain_cost) }}</span>
+            </div>
+            <div class="flex justify-between pt-1 mt-1" style="border-top: 1px solid var(--border);">
+                <span class="flex items-center font-semibold" style="color: var(--accent);">Period cost<span class="info-tip" data-tip="Total allocated cost for this app in the last calculation period">i</span></span>
+                <span class="font-semibold" style="color: var(--accent);">${{ "%.6f"|format(snap.total_cost) }}</span>
+            </div>
+            <div class="flex justify-between text-xs pt-1" style="color: var(--text-secondary);">
+                <span>Monthly (projected)</span>
+                <span>${{ "%.2f"|format(snap.total_cost * periods_per_month) }}/mo</span>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card rounded-lg p-8 text-center mb-8">
+    <p class="text-lg" style="color: var(--text-secondary);">No cost data yet. The first calculation will run shortly after startup.</p>
+</div>
+{% endif %}
+</div>
+
+<!-- Charts -->
+{% if history_by_app %}
+<div class="mb-8">
+    <div class="card rounded-lg p-5" id="breakdownChartCard">
+        <h3 class="font-semibold mb-4" id="breakdownChartTitle">Cost Breakdown <span class="text-xs font-normal" style="color: var(--text-secondary);">(last {{ calc_interval_minutes }}m)</span></h3>
+        <canvas id="breakdownChart" height="200"></canvas>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim();
+</script>
+{% if history_by_app %}
+<script>
+const historyData = {{ history_by_app | tojson }};
+const appNames = {{ app_names | tojson }};
+const displayNames = {{ display_names | tojson }};
+const colours = ['#5AC8FA', '#30D158', '#FF9F0A', '#FF453A', '#BF5AF2', '#64D2FF'];
+
+// Cost Breakdown Chart
+let breakdownChartInstance = null;
+
+function renderBreakdownChart(scores, displayNames, windowLabel) {
+    const canvas = document.getElementById('breakdownChart');
+    if (!canvas) return;
+    if (breakdownChartInstance) breakdownChartInstance.destroy();
+
+    const titleEl = document.getElementById('breakdownChartTitle');
+    if (titleEl) {
+        titleEl.innerHTML = `Cost Breakdown <span class="text-xs font-normal" style="color: var(--text-secondary);">(${windowLabel})</span>`;
+    }
+
+    breakdownChartInstance = new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: scores.map(s => displayNames[s.app_name] || s.app_name),
+            datasets: [
+                {
+                    label: 'Droplet',
+                    data: scores.map(s => s.droplet_cost),
+                    backgroundColor: '#5AC8FA',
+                },
+                {
+                    label: 'Cloudflare',
+                    data: scores.map(s => s.cloudflare_cost),
+                    backgroundColor: '#FF9F0A',
+                },
+                {
+                    label: 'Domain',
+                    data: scores.map(s => s.domain_cost),
+                    backgroundColor: '#BF5AF2',
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: { stacked: true, grid: { color: 'rgba(128,128,128,0.1)' } },
+                y: { stacked: true, title: { display: true, text: 'USD' }, grid: { color: 'rgba(128,128,128,0.1)' } }
+            },
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+}
+
+// Initial render from SSR data
+const latestData = appNames.map(app => {
+    const history = historyData[app] || [];
+    if (history.length === 0) return null;
+    const d = history[history.length - 1];
+    return { app_name: app, droplet_cost: d.droplet_cost, cloudflare_cost: d.cloudflare_cost, domain_cost: d.domain_cost };
+}).filter(Boolean);
+
+renderBreakdownChart(latestData, displayNames, 'last {{ calc_interval_minutes }}m');
+</script>
+{% endif %}
+
+<script>
+const windowLabels = { 1440: 'last 1 day', 10080: 'last 1 week', 43200: 'last 1 month', 525960: 'last 1 year' };
+
+function fmt(value, decimals) {
+    return Number(value).toFixed(decimals);
+}
+
+function renderDroplet(droplet, allContainers, windowLabel) {
+    const el = document.getElementById('dropletSection');
+    if (!droplet) { el.innerHTML = ''; return; }
+    const containerTags = allContainers.map(c =>
+        `<span class="text-xs px-2 py-0.5 rounded-full" style="background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border);">${c}</span>`
+    ).join('');
+    el.innerHTML = `
+    <div class="card rounded-lg p-5 mb-6">
+        <div class="flex items-center justify-between mb-1">
+            <div class="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color: var(--accent);">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
+                </svg>
+                <h3 class="font-semibold text-lg">Droplet Total <span class="text-xs font-normal" style="color: var(--text-secondary);">(${windowLabel})</span></h3>
+            </div>
+            <span class="text-xs px-2 py-1 rounded-full" style="background: var(--accent-light); color: var(--accent-dark);">
+                ${droplet.container_count} containers
+            </span>
+        </div>
+        <div class="flex flex-wrap gap-1 mb-3">${containerTags}</div>
+        <div class="space-y-1 text-sm" style="color: var(--text-secondary);">
+            <div class="flex justify-between">
+                <span class="flex items-center">Droplet share<span class="info-tip" data-tip="Compute cost allocated by 50% CPU + 50% memory usage share">i</span></span>
+                <span>$${fmt(droplet.droplet_cost, 4)}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="flex items-center">Cloudflare share<span class="info-tip" data-tip="DNS/CDN cost allocated by network traffic share">i</span></span>
+                <span>$${fmt(droplet.cloudflare_cost, 4)}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="flex items-center">Domain share<span class="info-tip" data-tip="Domain registration split evenly across app groups">i</span></span>
+                <span>$${fmt(droplet.domain_cost, 4)}</span>
+            </div>
+            <div class="flex justify-between pt-1 mt-1 font-semibold" style="border-top: 1px solid var(--border); color: var(--accent);">
+                <span>Period total</span>
+                <span>$${fmt(droplet.total_cost, 4)}</span>
+            </div>
+        </div>
+    </div>`;
+}
+
+function renderAppCards(scores, displayNames, boundaries, windowLabel) {
+    const el = document.getElementById('appCardsSection');
+    if (!scores || scores.length === 0) {
+        el.innerHTML = `<div class="card rounded-lg p-8 text-center mb-8">
+            <p class="text-lg" style="color: var(--text-secondary);">No cost data for this time window.</p>
+        </div>`;
+        return;
+    }
+    const cards = scores.map(score => {
+        const name = displayNames[score.app_name] || score.app_name;
+        const containers = (boundaries[score.app_name] || []).map(c =>
+            `<span class="text-xs px-2 py-0.5 rounded-full" style="background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border);">${c}</span>`
+        ).join('');
+        return `
+        <div class="card rounded-lg p-5">
+            <div class="flex items-center justify-between mb-1">
+                <h3 class="font-semibold text-lg">${name} <span class="text-xs font-normal" style="color: var(--text-secondary);">(${windowLabel})</span></h3>
+            </div>
+            <div class="flex flex-wrap gap-1 mb-3">${containers}</div>
+            <div class="space-y-1 text-sm" style="color: var(--text-secondary);">
+                <div class="flex justify-between">
+                    <span class="flex items-center">CPU share<span class="info-tip" data-tip="Proportion of total CPU-seconds consumed">i</span></span>
+                    <span>${fmt(score.cpu_share * 100, 1)}%</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="flex items-center">Memory share<span class="info-tip" data-tip="Proportion of total memory used (avg)">i</span></span>
+                    <span>${fmt(score.memory_share * 100, 1)}%</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="flex items-center">Droplet cost<span class="info-tip" data-tip="Compute cost = (50% CPU + 50% memory share) x droplet cost">i</span></span>
+                    <span>$${fmt(score.droplet_cost, 4)}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="flex items-center">Domain cost<span class="info-tip" data-tip="Domain registration split evenly">i</span></span>
+                    <span>$${fmt(score.domain_cost, 4)}</span>
+                </div>
+                <div class="flex justify-between pt-1 mt-1" style="border-top: 1px solid var(--border);">
+                    <span class="flex items-center font-semibold" style="color: var(--accent);">Period cost<span class="info-tip" data-tip="Total allocated cost for this period">i</span></span>
+                    <span class="font-semibold" style="color: var(--accent);">$${fmt(score.total_cost, 4)}</span>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+    el.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">${cards}</div>`;
+}
+
+async function switchTimeRange(minutes) {
+    const windowLabel = windowLabels[minutes] || `last ${minutes}m`;
+    try {
+        const resp = await fetch(`/api/cost/aggregated?minutes=${minutes}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+
+        // Collect all containers from boundaries
+        const allContainers = Object.values(data.boundaries).flat();
+
+        renderDroplet(data.droplet, allContainers, windowLabel);
+        renderAppCards(data.scores, data.display_names, data.boundaries, windowLabel);
+
+        if (typeof renderBreakdownChart === 'function') {
+            renderBreakdownChart(data.scores, data.display_names, windowLabel);
+        }
+    } catch (err) {
+        console.error('Failed to fetch aggregated data:', err);
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,41 @@
+services:
+  showback:
+    image: ghcr.io/darrylcauldwell/showback:latest
+    container_name: showback
+    restart: unless-stopped
+    environment:
+      - SHOWBACK_PROMETHEUS_URL=${SHOWBACK_PROMETHEUS_URL:-http://prometheus:9090/prometheus}
+      - SHOWBACK_DROPLET_COST=${SHOWBACK_DROPLET_COST:-24.00}
+      - SHOWBACK_CLOUDFLARE_COST=${SHOWBACK_CLOUDFLARE_COST:-0.00}
+      - SHOWBACK_DOMAIN_COST=${SHOWBACK_DOMAIN_COST:-1.02}
+      - SHOWBACK_CPU_WEIGHT=${SHOWBACK_CPU_WEIGHT:-0.5}
+      - SHOWBACK_MEMORY_WEIGHT=${SHOWBACK_MEMORY_WEIGHT:-0.5}
+      - SHOWBACK_HOST_VCPUS=${SHOWBACK_HOST_VCPUS:-2}
+      - SHOWBACK_HOST_MEMORY_GB=${SHOWBACK_HOST_MEMORY_GB:-4}
+      - SHOWBACK_HOST_DISK_GB=${SHOWBACK_HOST_DISK_GB:-80}
+      - SHOWBACK_APP_BOUNDARIES=${SHOWBACK_APP_BOUNDARIES:-{}}
+      - SHOWBACK_APP_DISPLAY_NAMES=${SHOWBACK_APP_DISPLAY_NAMES:-{}}
+      - SHOWBACK_CALCULATION_INTERVAL_MINUTES=${SHOWBACK_CALCULATION_INTERVAL_MINUTES:-15}
+      - SHOWBACK_DATABASE_URL=${SHOWBACK_DATABASE_URL:-sqlite+aiosqlite:///data/showback.db}
+      - SHOWBACK_LOG_LEVEL=${SHOWBACK_LOG_LEVEL:-INFO}
+    volumes:
+      - showback_data:/app/data
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  showback_data:
