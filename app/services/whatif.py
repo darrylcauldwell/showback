@@ -62,6 +62,14 @@ def compare_providers() -> dict:
             "notes": plan.get("notes", ""),
         })
 
+    # Filter to plans that meet or exceed current spec
+    results = [
+        r for r in results
+        if r["vcpus"] >= settings.host_vcpus
+        and r["memory_gb"] >= settings.host_memory_gb
+        and r["disk_gb"] >= settings.host_disk_gb
+    ]
+
     # Sort by total monthly cost ascending
     results.sort(key=lambda r: r["total_monthly"])
 
