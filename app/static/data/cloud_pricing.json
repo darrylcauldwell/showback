@@ -1,0 +1,132 @@
+[
+  {
+    "provider": "DO",
+    "plan": "s-2vcpu-4gb",
+    "location": "London, UK",
+    "vcpus": 2,
+    "memory_gb": 4,
+    "disk_gb": 80,
+    "monthly_cost": 24.00,
+    "notes": "Current plan — Basic Droplet"
+  },
+  {
+    "provider": "DO",
+    "plan": "s-2vcpu-4gb-amd",
+    "location": "London, UK",
+    "vcpus": 2,
+    "memory_gb": 4,
+    "disk_gb": 80,
+    "monthly_cost": 28.00,
+    "notes": "AMD Premium Droplet"
+  },
+  {
+    "provider": "DO",
+    "plan": "s-4vcpu-8gb",
+    "location": "London, UK",
+    "vcpus": 4,
+    "memory_gb": 8,
+    "disk_gb": 160,
+    "monthly_cost": 48.00,
+    "notes": "Basic Droplet — next size up"
+  },
+  {
+    "provider": "AWS",
+    "plan": "t3.small",
+    "location": "eu-west-2 (London)",
+    "vcpus": 2,
+    "memory_gb": 2,
+    "disk_gb": 80,
+    "monthly_cost": 19.27,
+    "notes": "Burstable, less RAM. +$8/mo for 80GB gp3 EBS"
+  },
+  {
+    "provider": "AWS",
+    "plan": "t3.medium",
+    "location": "eu-west-2 (London)",
+    "vcpus": 2,
+    "memory_gb": 4,
+    "disk_gb": 80,
+    "monthly_cost": 38.54,
+    "notes": "Burstable, closest match. +$8/mo for 80GB gp3 EBS"
+  },
+  {
+    "provider": "AWS",
+    "plan": "t3a.medium",
+    "location": "eu-west-2 (London)",
+    "vcpus": 2,
+    "memory_gb": 4,
+    "disk_gb": 80,
+    "monthly_cost": 34.70,
+    "notes": "AMD burstable, cheaper. +$8/mo for 80GB gp3 EBS"
+  },
+  {
+    "provider": "AWS",
+    "plan": "t4g.medium",
+    "location": "eu-west-2 (London)",
+    "vcpus": 2,
+    "memory_gb": 4,
+    "disk_gb": 80,
+    "monthly_cost": 30.80,
+    "notes": "Graviton (ARM), cheapest AWS match. +$8/mo for 80GB gp3 EBS"
+  },
+  {
+    "provider": "Azure",
+    "plan": "B2s",
+    "location": "UK South (London)",
+    "vcpus": 2,
+    "memory_gb": 4,
+    "disk_gb": 80,
+    "monthly_cost": 38.54,
+    "notes": "Burstable, closest match. +$6.16/mo for 64GB P6 managed disk"
+  },
+  {
+    "provider": "Azure",
+    "plan": "B2ms",
+    "location": "UK South (London)",
+    "vcpus": 2,
+    "memory_gb": 8,
+    "disk_gb": 80,
+    "monthly_cost": 68.26,
+    "notes": "Burstable, double RAM. +$6.16/mo for 64GB P6 managed disk"
+  },
+  {
+    "provider": "Azure",
+    "plan": "D2as_v5",
+    "location": "UK South (London)",
+    "vcpus": 2,
+    "memory_gb": 8,
+    "disk_gb": 80,
+    "monthly_cost": 76.65,
+    "notes": "General purpose AMD. +$9.60/mo for 128GB P10 managed disk"
+  },
+  {
+    "provider": "GCP",
+    "plan": "e2-medium",
+    "location": "europe-west2 (London)",
+    "vcpus": 2,
+    "memory_gb": 4,
+    "disk_gb": 80,
+    "monthly_cost": 33.37,
+    "notes": "Shared-core, closest match. +$6.80/mo for 80GB pd-balanced"
+  },
+  {
+    "provider": "GCP",
+    "plan": "e2-standard-2",
+    "location": "europe-west2 (London)",
+    "vcpus": 2,
+    "memory_gb": 8,
+    "disk_gb": 80,
+    "monthly_cost": 68.92,
+    "notes": "Dedicated 2 vCPU. +$6.80/mo for 80GB pd-balanced"
+  },
+  {
+    "provider": "GCP",
+    "plan": "t2a-standard-1",
+    "location": "europe-west2 (London)",
+    "vcpus": 1,
+    "memory_gb": 4,
+    "disk_gb": 80,
+    "monthly_cost": 30.66,
+    "notes": "Arm (Tau T2A), 1 vCPU only. +$6.80/mo for 80GB pd-balanced"
+  }
+]

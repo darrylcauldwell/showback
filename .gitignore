@@ -37,7 +37,7 @@ api_key.json
 Thumbs.db
 
 # Docker volumes
-data/
+/data/
 
 # Test / coverage
 .pytest_cache/
