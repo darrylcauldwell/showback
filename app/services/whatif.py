@@ -65,10 +65,15 @@ def compare_providers() -> dict:
     # Sort by total monthly cost ascending
     results.sort(key=lambda r: r["total_monthly"])
 
-    # Find cheapest non-current option
+    # Find cheapest non-current option that meets or exceeds current spec
     cheapest = None
     for r in results:
-        if not r["is_current"]:
+        if (
+            not r["is_current"]
+            and r["vcpus"] >= settings.host_vcpus
+            and r["memory_gb"] >= settings.host_memory_gb
+            and r["disk_gb"] >= settings.host_disk_gb
+        ):
             cheapest = r
             break
 

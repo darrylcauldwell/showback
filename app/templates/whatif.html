@@ -167,9 +167,11 @@ function renderTable(data) {
         return 0;
     });
 
-    // Find cheapest
-    const allSorted = [...data.plans].sort((a, b) => a.total_monthly - b.total_monthly);
-    const cheapestKey = allSorted.length > 0 ? allSorted[0].provider + allSorted[0].plan : null;
+    // Find cheapest that meets or exceeds current spec
+    const eligible = [...data.plans].filter(r =>
+        r.vcpus >= data.host_vcpus && r.memory_gb >= data.host_memory_gb && r.disk_gb >= data.host_disk_gb
+    ).sort((a, b) => a.total_monthly - b.total_monthly);
+    const cheapestKey = eligible.length > 0 ? eligible[0].provider + eligible[0].plan : null;
 
     let html = '';
     plans.forEach((r, i) => {
